@@ -1,0 +1,57 @@
+# -*- mode: ruby -*-
+# Ambiente de execucao do projecto ddt (RC-I 2026-2027).
+#
+# Rede host-only 192.168.56.0/24:
+#   boot  192.168.56.21  servidor de arranque UDP (porta 58000) - arranca sozinho
+#   node1 192.168.56.22  nos do anel
+#   node2 192.168.56.23
+#   node3 192.168.56.24
+#
+# Uso:  vagrant up
+#       vagrant ssh node1 -c "cd /vagrant && ./ddt -t 58001"
+Vagrant.configure("2") do |config|
+  config.vm.box = "ubuntu/jammy64"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 512
+    vb.cpus = 1
+  end
+
+  # Ficheiros do projecto partilhados com as VMs em /vagrant (por omissao).
+  provision_common = <<-SHELL
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y
+    apt-get install -y build-essential gdb make netcat-openbsd telnet net-tools
+    cd /vagrant && make clean && make
+  SHELL
+
+  config.vm.define "boot" do |m|
+    m.vm.hostname = "boot"
+    m.vm.network "private_network", ip: "192.168.56.21"
+    m.vm.provision "shell", inline: provision_common
+    m.vm.provision "shell", inline: <<-SHELL
+      cat > /etc/systemd/system/ddt-boot.service <<'EOF'
+[Unit]
+Description=Servidor de arranque UDP do ddt
+After=network.target
+
+[Service]
+ExecStart=/vagrant/bootserver -p 58000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+      systemctl daemon-reload
+      systemctl enable --now ddt-boot.service
+    SHELL
+  end
+
+  (1..3).each do |n|
+    config.vm.define "node#{n}" do |m|
+      m.vm.hostname = "node#{n}"
+      m.vm.network "private_network", ip: "192.168.56.#{21 + n}"
+      m.vm.provision "shell", inline: provision_common
+    end
+  end
+end

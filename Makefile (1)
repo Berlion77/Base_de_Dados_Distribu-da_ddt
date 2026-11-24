@@ -1,0 +1,19 @@
+CC      = gcc
+CFLAGS  = -Wall -Wextra -O2 -g -std=gnu11
+
+all: ddt bootserver
+
+ddt: ddt.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+bootserver: bootserver.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+# Teste de integracao em loopback (ver tests/run_tests.sh)
+test: all
+	./tests/run_tests.sh
+
+clean:
+	rm -f ddt bootserver
+
+.PHONY: all test clean
